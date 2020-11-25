@@ -1,0 +1,88 @@
+---
+title: 'covid-19'
+author: "[Orhan Aktaş](https://www.linkedin.com/in/orhanaktas/)"
+date: "25 Nov 2020"
+output:
+  html_document:
+    theme: flatly
+    df_print: paged
+  pdf_document: default
+  word_document: default
+   
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+	echo = TRUE,
+	message = FALSE,
+	warning = FALSE
+)
+```
+Bu dökümanda ....
+
+- [link1](https://datahub.io/core/covid-19#r)
+
+
+
+
+```{r import_main_json}
+library(tidyverse)
+library(jsonlite)
+main_file<-"https://datahub.io/core/covid-19/datapackage.json"
+covid_raw <- fromJSON(main_file,simplifyVector = FALSE)
+```
+
+
+burada listenin birden fazla elementini `[` fonksiyonu ile alıyorum. (Onun yerine magrittr paketinin extract fonksiyonu da kullanılabilir. Paket tidyverse'in içinde yüklenmiyor!)
+```{r create_df, echo=TRUE}
+names_and_paths<-covid_raw %>% 
+  pluck("resources") %>%
+  map_dfr(`[`,c("name","path"))
+```
+
+```{r get_path}
+file_path<-names_and_paths %>%
+  filter(name=="time-series-19-covid-combined_json") %>%
+  select(path) %>%
+  as.character()
+```
+
+
+```{r import_json}
+timeseries_raw <- fromJSON(file_path,simplifyVector = FALSE)
+```
+
+
+```{r tidy_data}
+cnames<-timeseries_raw %>% 
+  pluck(1) %>%
+  names
+
+data<-timeseries_raw %>% 
+  map_dfr(`[`,cnames) %>%
+  as_tibble()
+
+names(data)[2]<-"Country"
+
+
+data<-data %>% 
+  mutate(
+    Date=as.Date(Date),
+    DailyCase=Confirmed-lag(Confirmed),
+    DailyDeath=Deaths-lag(Deaths),
+    DailyRecovered=Recovered-lag(Recovered)
+  )
+```
+
+
+```{r analyze}
+data %>% 
+  filter(Country=="Turkey") %>% 
+  filter(Date!="2020-01-22")%>%
+  ggplot()+
+  geom_line(mapping = aes(x=Date,y=DailyCase))+
+  geom_line(mapping = aes(x=Date,y=DailyDeath*40),color="red")
+
+```
+
