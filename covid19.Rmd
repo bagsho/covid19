@@ -34,13 +34,15 @@ covid_raw <- fromJSON(main_file,simplifyVector = FALSE)
 ```
 
 
-burada listenin birden fazla elementini `[` fonksiyonu ile alıyorum. (Onun yerine magrittr paketinin extract fonksiyonu da kullanılabilir. Paket tidyverse'in içinde yüklenmiyor!)
+burada listenin birden fazla elementini `[` fonksiyonu ile alıyorum. (Onun yerine magrittr paketinin extract fonksiyonu da kullanılabilir. Ancak o paket tidyverse'in içinde yüklenmiyor!)
 ```{r create_df, echo=TRUE}
 names_and_paths<-covid_raw %>% 
   pluck("resources") %>%
   map_dfr(`[`,c("name","path"))
 ```
 
+
+du dosyanın içinde bir çok data hakkında bilgi olduğu için bunlardan birini seçip, onun path bilgisini alıyorum.
 ```{r get_path}
 file_path<-names_and_paths %>%
   filter(name=="time-series-19-covid-combined_json") %>%
@@ -48,25 +50,12 @@ file_path<-names_and_paths %>%
   as.character()
 ```
 
-
+daha sonra bu path'te bulunan veriyi import edip düzenliyorum. 
 ```{r import_json}
-timeseries_raw <- fromJSON(file_path,simplifyVector = FALSE)
-```
-
-
-```{r tidy_data}
-cnames<-timeseries_raw %>% 
-  pluck(1) %>%
-  names
+timeseries_raw <- fromJSON(file_path)
 
 data<-timeseries_raw %>% 
-  map_dfr(`[`,cnames) %>%
-  as_tibble()
-
-names(data)[2]<-"Country"
-
-
-data<-data %>% 
+  rename(Country="Country/Region") %>%
   mutate(
     Date=as.Date(Date),
     DailyCase=Confirmed-lag(Confirmed),
@@ -76,13 +65,41 @@ data<-data %>%
 ```
 
 
+bu şekilde veri doğrudan data frame olarak alınıyor. Burada veri alındığında data frame'e çevirilebilecek gibi olduğu için bu yöntem çalışıyor. Ancak bunun sağlanmaması muhtemelen çok daha fazla karşılaşılan bir durum olabilir. Bu durumda aşağıda gibi alınabilir. Ancak aşağıdaki kod (spesifik olarak map_dfr bölümü) oldukça uzun sürüyor.
+
+```{r other_import, echo=TRUE, eval=FALSE}
+timeseries_raw <- fromJSON(file_path,simplifyVector = FALSE)
+
+cnames<-timeseries_raw %>% 
+  pluck(1) %>%
+  names
+
+data<-timeseries_raw %>% 
+  map_dfr(`[`,cnames) 
+
+data<-data %>% 
+  rename(Country="Country/Region") %>%
+  mutate(
+    Date=as.Date(Date),
+    DailyCase=Confirmed-lag(Confirmed),
+    DailyDeath=Deaths-lag(Deaths),
+    DailyRecovered=Recovered-lag(Recovered)
+  )
+```
+
+
+
+
 ```{r analyze}
+countries<-c("France","Spain","Germany","Italy","United Kingdom","Turkey")
 data %>% 
-  filter(Country=="Turkey") %>% 
+  filter(Country %in% countries) %>% 
   filter(Date!="2020-01-22")%>%
+  filter(DailyDeath>0) %>%
   ggplot()+
-  geom_line(mapping = aes(x=Date,y=DailyCase))+
-  geom_line(mapping = aes(x=Date,y=DailyDeath*40),color="red")
+  geom_line(mapping = aes(x=Date,y=DailyDeath))+
+    facet_grid(Country ~ ., scales = "free") 
+  
 
 ```
 
