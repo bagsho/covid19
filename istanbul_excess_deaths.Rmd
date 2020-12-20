@@ -1,0 +1,59 @@
+---
+title: 'covid-19'
+author: "[Orhan Aktaş](https://www.linkedin.com/in/orhanaktas/)"
+date: "25 Nov 2020"
+output:
+  html_document:
+    theme: flatly
+    df_print: paged
+  pdf_document: default
+  word_document: default
+   
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+	echo = TRUE,
+	message = FALSE,
+	warning = FALSE
+)
+```
+Bu dökümanda ....
+
+
+```{r}
+library(tidyverse)
+library(readxl)
+url <- "https://bit.ly/2YAtytn"
+destfile <- "X2YAtytn.xlsx"
+curl::curl_download(url, destfile)
+
+
+data <- read_excel(destfile) %>% select(c(3:12))
+data<-data %>%
+  mutate(
+    average = rowMeans(select(data, c(4:9))),
+    dif = round(`2020` - average, 2),
+    Tarih = as.Date(Tarih)
+  )
+
+
+```
+
+
+plot
+```{r}
+data%>%
+  filter(Tarih < Sys.Date() - 2) %>%
+  ggplot(mapping = aes(x = Tarih)) +
+  geom_line(aes(y = average), color = "grey") +
+  geom_line(aes(y = `2020`), color = "red") +
+  scale_x_date(
+    date_labels = "%b",
+    date_breaks = "1 month"
+  ) +
+  geom_label(data = filter(data, Tarih == Sys.Date() - 3), 
+            aes(x=Tarih, y = `2020`,label=Tarih), color = "black")
+```
+
