@@ -31,29 +31,67 @@ curl::curl_download(url, destfile)
 
 
 data <- read_excel(destfile) %>% select(c(3:12))
+
 data<-data %>%
+  rowwise %>% 
   mutate(
-    average = rowMeans(select(data, c(4:9))),
-    dif = round(`2020` - average, 2),
-    Tarih = as.Date(Tarih)
+    min=min(c_across(defin_2015:defin_2019)),
+    max=max(c_across(defin_2015:defin_2019)),
+    avg=mean(c_across(defin_2015:defin_2019))
+  ) %>% 
+  ungroup %>% 
+  mutate(
+    dif = round(defin_2020 - avg, 2),
+    Tarih = as.Date(tarih_2020)
   )
-
-
+  
 ```
 
-
-plot
+# Daily Deaths (2015-2019 Averages vs 2020)
+ 
 ```{r}
+
+max_tarih<-data %>% filter(!is.na(son_guncelleme2020)) %>% select(tarih_2020) %>% summarise(max=max(tarih_2020)) 
+
 data%>%
-  filter(Tarih < Sys.Date() - 2) %>%
+  mutate(avg=zoo::rollmean(avg,k=3,fill=NA),
+         min=zoo::rollmean(min,k=3,fill=NA),
+         max=zoo::rollmean(max,k=3,fill=NA)
+         ) %>% 
+  filter(Tarih < as.Date(max_tarih[[1]])-1 ) %>%
   ggplot(mapping = aes(x = Tarih)) +
-  geom_line(aes(y = average), color = "grey") +
-  geom_line(aes(y = `2020`), color = "red") +
+  geom_ribbon(aes(ymin=min, ymax=max),fill="lightcyan3")+ 
+  geom_line(aes(y = avg), color = "black") +
+  geom_line(aes(y = defin_2020), color = "red") +
   scale_x_date(
     date_labels = "%b",
     date_breaks = "1 month"
   ) +
-  geom_label(data = filter(data, Tarih == Sys.Date() - 3), 
-            aes(x=Tarih, y = `2020`,label=Tarih), color = "black")
+  
+  geom_label(data = filter(data, Tarih == as.Date(max_tarih[[1]])-2 ), 
+            aes(x=Tarih, y = defin_2020,label=format(Tarih,"%d/%m")), color = "black")+
+  xlab("Ay")+
+  ylab("Günlük Ölüm Sayısı")
 ```
 
+# Excess Deaths (2015-2019 Averages vs 2020)
+
+```{r}
+data%>%
+  mutate(avg=zoo::rollmean(avg,k=3,fill=NA),
+         min=zoo::rollmean(min,k=3,fill=NA),
+         max=zoo::rollmean(max,k=3,fill=NA)
+         ) %>% 
+  filter(Tarih < as.Date(max_tarih[[1]])-1 ) %>%
+  ggplot(mapping = aes(x = Tarih)) +
+  geom_line(aes(y = dif), color = "black") +
+  scale_x_date(
+    date_labels = "%b",
+    date_breaks = "1 month"
+  ) +
+  
+  geom_label(data = filter(data, Tarih == as.Date(max_tarih[[1]])-2 ), 
+            aes(x=Tarih, y = dif,label=format(Tarih,"%d/%m")), color = "black")+
+  xlab("Ay")+
+  ylab("Günlük Fazladan Ölüm Sayısı")
+```
