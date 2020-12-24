@@ -25,6 +25,7 @@ Bu dökümanda ....
 ```{r}
 library(tidyverse)
 library(readxl)
+library(lubridate)
 url <- "https://bit.ly/2YAtytn"
 destfile <- "X2YAtytn.xlsx"
 curl::curl_download(url, destfile)

@@ -1,0 +1,140 @@
+---
+title: 'covid-19'
+author: "[Orhan Aktaş](https://www.linkedin.com/in/orhanaktas/)"
+date: "25 Nov 2020"
+output:
+  html_document:
+    theme: flatly
+    df_print: paged
+  pdf_document: default
+  word_document: default
+   
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = FALSE,
+  warning = FALSE
+)
+```
+Bu dökümanda ....
+
+
+```{r}
+library(tidyverse)
+library(lubridate)
+library(readr)
+library(readxl)
+library(RColorBrewer)
+
+```
+
+
+# data import
+
+restore data
+```{r}
+cities <- readRDS(file = "data/cities.rds")
+data_raw<-readRDS(file = "data/raw_data.rds")
+```
+
+update data
+```{r update data, eval=FALSE, include=FALSE}
+
+folder_link<-"https://raw.githubusercontent.com/gucluyaman/Excess-mortality-in-Turkey/master/cities/"
+
+data_raw<-cities %>%
+  pluck(1) %>%
+  map(function(x) paste(folder_link,x,sep = "")) %>%
+  map(read_delim,
+      delim=";",
+      escape_double = FALSE,
+      trim_ws = TRUE
+  )
+
+saveRDS(data_raw,file = "data/raw_data.rds")
+```
+
+# data wrangling
+```{r}
+data<-data_raw %>% 
+  map2(
+    str_replace(cities[[1]],".csv",""),
+    ~mutate(.x,city=.y)
+  )%>% 
+  map(
+    rename_with,
+    toupper
+  ) %>% 
+  bind_rows() %>% 
+  select(-starts_with("X")) %>% 
+  set_names(c("date","death_2015","death_2016","death_2017","death_2018","death_2019","death_2020","city")) %>% 
+  rowwise %>% 
+  mutate(death_avg=mean(c_across(death_2015:death_2019),na.rm = TRUE),
+         excess_death=death_2020-death_avg) %>% 
+  ungroup %>% 
+  mutate(date=dmy(date),
+         week=week(date)
+  ) %>% 
+  relocate(city) %>% 
+  relocate(death_avg,.before=death_2020) %>% 
+  relocate(week,.after=date)
+
+```
+
+# example charts
+```{r}
+
+data %>% 
+  filter(city=="Izmir"&!is.na(excess_death)) %>% 
+  group_by(week) %>% 
+  summarise(excess_death=sum(excess_death,na.rm = TRUE)) %>% 
+  ggplot(aes(x=week,y=excess_death,group=1))+
+    geom_line()
+```
+
+# all charts
+```{r}
+plot_city<- function(city_name) {
+  data %>% 
+  filter(city==city_name&!is.na(excess_death)&week<51) %>% 
+  group_by(week) %>% 
+  summarise(excess_death=sum(excess_death,na.rm = TRUE)) %>% 
+  ggplot(aes(x=week,y=excess_death,group=1,colour=excess_death))+
+    geom_line(size=1) +
+    labs(title = paste("Weekly Excess Deaths for",city_name), 
+         subtitle = "Real Covid-19 Data for Turkey",
+         caption = "(based on data from ...)"
+    )+ 
+    xlab("Week Number") +
+    ylab("Weekly Excess Deaths")+
+    scale_colour_gradient(
+      low = "yellow",
+      high = "red"
+    )
+}
+
+cities %>% 
+  pluck(1) %>% 
+  str_replace(".csv","") %>% 
+  map(plot_city)
+```
+
+
+
+
+
+# total excess deaths in Turkey
+
+```{r}
+data %>% 
+  group_by() %>% 
+  summarise(
+    sum_sample_cities=sum(excess_death,na.rm = TRUE),
+    sum_turkey=sum(excess_death/0.59,na.rm = TRUE)
+  )
+```
+
+ 
